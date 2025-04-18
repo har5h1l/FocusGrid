@@ -3,7 +3,6 @@ import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { AuthProvider } from "@/hooks/use-auth";
-import { SupabaseAuthProvider } from "@/hooks/useSupabaseAuth";
 import { ProtectedRoute } from "@/lib/protected-route";
 import Header from "./components/Header";
 import Footer from "./components/Footer";
@@ -77,18 +76,16 @@ function Router() {
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <SupabaseAuthProvider>
-        <AuthProvider>
-          <div className="min-h-screen flex flex-col">
-            <Header />
-            <main className="flex-1 w-full mx-auto">
-              <Router />
-            </main>
-            <Footer />
-          </div>
-          <Toaster />
-        </AuthProvider>
-      </SupabaseAuthProvider>
+      <AuthProvider>
+        <div className="min-h-screen flex flex-col">
+          <Header />
+          <main className="flex-1 w-full mx-auto">
+            <Router />
+          </main>
+          <Footer />
+        </div>
+        <Toaster />
+      </AuthProvider>
     </QueryClientProvider>
   );
 }

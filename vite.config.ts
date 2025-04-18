@@ -1,4 +1,3 @@
-
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
@@ -11,14 +10,6 @@ export default defineConfig({
     }
   },
   server: {
-<<<<<<< HEAD
-    port: 5000,
-    host: '0.0.0.0',
-    hmr: {
-      clientPort: 443,
-      host: '0.0.0.0'
-    }
-=======
     port: 5173,
     host: '0.0.0.0',
     strictPort: true,
@@ -31,6 +22,5 @@ export default defineConfig({
       'localhost',
       '127.0.0.1'
     ]
->>>>>>> 85be560f67147b707c77250438131225c937ba90
   }
 });

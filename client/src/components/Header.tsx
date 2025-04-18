@@ -1,7 +1,7 @@
 import { Link, useLocation } from "wouter";
 import { Book, User, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useSupabaseAuth } from "@/hooks/useSupabaseAuth";
+import { useAuth } from "@/hooks/use-auth";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -11,7 +11,7 @@ import {
 
 export default function Header() {
   const [location, navigate] = useLocation();
-  const { user, logout, loading } = useSupabaseAuth();
+  const { user, logout, loading } = useAuth();
   
   const isAuthPage = location === "/auth";
   
