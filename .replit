@@ -1,4 +1,4 @@
-modules = ["nodejs-20", "web"]
+modules = ["nodejs-20:v8-20230920-bd784b9"]
 run = "npm run dev"
 hidden = [".config", ".git", "generated-icon.png", "node_modules", "dist"]
 
@@ -6,8 +6,8 @@ hidden = [".config", ".git", "generated-icon.png", "node_modules", "dist"]
 channel = "stable-24_05"
 
 [deployment]
-deploymentTarget = "autoscale"
-run = ["sh", "-c", "npm run dev"]
+deploymentTarget = "cloudrun"
+run = ["sh", "-c", "npm run build && npm run preview"]
 
 [workflows]
 runButton = "Project"
@@ -37,9 +37,5 @@ args = "npm run dev"
 waitForPort = 5000
 
 [[ports]]
-localPort = 3000
-externalPort = 3000
-
-[[ports]]
-localPort = 5000
+localPort = 5173
 externalPort = 80
