@@ -12,7 +12,7 @@ A minimalist study planning application that helps students create and optimize 
 
 ## Prerequisites
 
-- Node.js (v16 or higher)
+- Node.js (v20.0.0 or higher)
 - npm (v7 or higher)
 
 ## Getting Started
