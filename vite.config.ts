@@ -4,6 +4,8 @@ import path from 'path';
 
 export default defineConfig({
   plugins: [react()],
+  root: './client',
+  publicDir: './public',
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './client/src')
@@ -12,15 +14,23 @@ export default defineConfig({
   server: {
     port: 5173,
     host: '0.0.0.0',
-    strictPort: true,
+    strictPort: false,
     hmr: {
       clientPort: 443
     },
     allowedHosts: [
-      '40c5a813-64b7-4486-a7fb-6f7113c27711-00-372o225b2ta42.kirk.replit.dev',
       '.replit.dev',
       'localhost',
       '127.0.0.1'
-    ]
+    ],
+    watch: {
+      usePolling: true,
+      interval: 1000,
+    }
+  },
+  build: {
+    outDir: '../dist',
+    emptyOutDir: true,
+    sourcemap: true
   }
 });
