@@ -10,10 +10,11 @@ export default defineConfig({
     }
   },
   server: {
-    port: 3000,
+    port: 5000,
     host: '0.0.0.0',
-    allowedHosts: [
-      '40c5a813-64b7-4486-a7fb-6f7113c27711-00-372o225b2ta42.kirk.replit.dev'
-    ]
+    hmr: {
+      clientPort: 443,
+      host: '0.0.0.0'
+    }
   }
 });
