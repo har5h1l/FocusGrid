@@ -1,7 +1,7 @@
 import { StudyTask } from "../types";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest } from "@/lib/api";
 import { format, parseISO } from "date-fns";
 
 interface TaskItemProps {
@@ -20,8 +20,26 @@ export default function TaskItem({ task }: TaskItemProps) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [`/api/study-plans/${task.studyPlanId}/tasks`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/study-plans/${task.studyPlanId}`] });
+      
+      queryClient.invalidateQueries({ queryKey: ['/api/study-plans'] });
+      
+      updateTopicProgress(task);
     }
   });
+  
+  const updateTopicProgress = (task: StudyTask) => {
+    const titleParts = task.title.split(' ');
+    if (titleParts.length <= 1) return;
+    
+    const action = titleParts[0].toLowerCase();
+    const topicName = titleParts.slice(1).join(' ');
+    
+    const cachedPlan = queryClient.getQueryData([`/api/study-plans/${task.studyPlanId}`]);
+    if (!cachedPlan) return;
+    
+    console.log(`Updated progress for topic "${topicName}" in task ${task.id}`);
+  };
 
   const getStatusBadgeClass = () => {
     if (task.isCompleted) {

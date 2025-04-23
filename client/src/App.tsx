@@ -1,93 +1,84 @@
-import { Switch, Route, Link, useLocation } from "wouter";
-import { queryClient } from "./lib/queryClient";
-import { QueryClientProvider } from "@tanstack/react-query";
-import { Toaster } from "@/components/ui/toaster";
-import { AuthProvider } from "@/hooks/use-auth";
-import { ProtectedRoute } from "@/lib/protected-route";
-import Header from "./components/Header";
-import Footer from "./components/Footer";
-import CreatePlan from "./pages/CreatePlan";
-import Schedule from "./pages/Schedule";
-import Progress from "./pages/Progress";
-import AuthPage from "./pages/auth-page";
-import GoogleAuthSuccess from "./pages/GoogleAuthSuccess";
-import NotFound from "@/pages/not-found";
+import { Route, Switch } from 'wouter';
+import { Toaster } from '@/components/ui/toaster';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
-function MainTabs() {
-  const [location, setLocation] = useLocation();
+// Pages
+import AuthPage from '@/pages/auth-page';
+import CreatePlan from '@/pages/CreatePlan';
+import Schedule from '@/pages/Schedule';
 
-  return (
-    <div className="mb-8">
-      <div className="border-b border-gray-200">
-        <nav className="-mb-px flex space-x-8">
-          <Link href="/">
-            <a 
-              className={`whitespace-nowrap py-4 px-1 font-medium text-sm border-b-2 ${
-                location === "/" ? "border-primary text-primary" : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-              }`}
-            >
-              Create Plan
-            </a>
-          </Link>
-          <Link href="/schedule">
-            <a 
-              className={`whitespace-nowrap py-4 px-1 font-medium text-sm border-b-2 ${
-                location === "/schedule" ? "border-primary text-primary" : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-              }`}
-            >
-              My Schedule
-            </a>
-          </Link>
-          <Link href="/progress">
-            <a 
-              className={`whitespace-nowrap py-4 px-1 font-medium text-sm border-b-2 ${
-                location === "/progress" ? "border-primary text-primary" : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-              }`}
-            >
-              Progress
-            </a>
-          </Link>
+// Layout components
+const Header = ({ showNav = true }: { showNav?: boolean }) => (
+  showNav ? (
+    <header className="bg-primary text-primary-foreground p-4">
+      <div className="container mx-auto flex justify-between items-center">
+        <h1 className="text-xl font-bold">FocusGrid</h1>
+        <nav>
+          <ul className="flex space-x-4">
+            <li><a href="/" className="hover:underline">Home</a></li>
+            <li><a href="/plans/new" className="hover:underline">New Plan</a></li>
+          </ul>
         </nav>
       </div>
-    </div>
-  );
-}
+    </header>
+  ) : null
+);
 
-function Router() {
-  const [location] = useLocation();
-  // Don't show MainTabs on auth page or google auth success page
-  const showTabs = location !== "/auth" && !location.startsWith("/auth/google");
-  
-  return (
-    <>
-      {showTabs && <MainTabs />}
-      <Switch>
-        <ProtectedRoute path="/" component={CreatePlan} />
-        <ProtectedRoute path="/schedule" component={Schedule} />
-        <ProtectedRoute path="/progress" component={Progress} />
-        <Route path="/auth" component={AuthPage} />
-        <Route path="/auth/google/success" component={GoogleAuthSuccess} />
-        <Route component={NotFound} />
-      </Switch>
-    </>
-  );
-}
+const Layout = ({ children, showNav = true }: { children: React.ReactNode, showNav?: boolean }) => (
+  <div className="min-h-screen flex flex-col">
+    <Header showNav={showNav} />
+    <main className="flex-grow container mx-auto">
+      {children}
+    </main>
+    <footer className="bg-muted p-4 text-center text-sm text-muted-foreground">
+      <div className="container mx-auto">
+        FocusGrid &copy; {new Date().getFullYear()}
+      </div>
+    </footer>
+  </div>
+);
 
-function App() {
+// Create a client
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 5 * 60 * 1000, // 5 minutes
+      retry: 1,
+    },
+  },
+});
+
+export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <div className="min-h-screen flex flex-col">
-          <Header />
-          <main className="flex-1 w-full mx-auto">
-            <Router />
-          </main>
-          <Footer />
-        </div>
-        <Toaster />
-      </AuthProvider>
+      <Switch>
+        <Route path="/">
+          {/* No layout wrapper for homepage to allow for custom header/footer */}
+          <AuthPage />
+        </Route>
+        <Route path="/plans/new">
+          <Layout>
+            <CreatePlan />
+          </Layout>
+        </Route>
+        <Route path="/plans/:id">
+          {(params) => (
+            <Layout>
+              <Schedule id={params.id} />
+            </Layout>
+          )}
+        </Route>
+        <Route>
+          <Layout>
+            <div className="p-8 text-center">
+              <h1 className="text-2xl font-bold">404 - Not Found</h1>
+              <p className="mt-2">The page you're looking for doesn't exist.</p>
+              <a href="/" className="mt-4 inline-block text-primary hover:underline">Go to Dashboard</a>
+            </div>
+          </Layout>
+        </Route>
+      </Switch>
+      <Toaster />
     </QueryClientProvider>
   );
 }
-
-export default App;

@@ -3,6 +3,70 @@
 @tailwind utilities;
 
 @layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 224 71.4% 4.1%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 224 71.4% 4.1%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 224 71.4% 4.1%;
+
+    --primary: 221.2 83.2% 53.3%;
+    --primary-foreground: 210 20% 98%;
+
+    --secondary: 220 14.3% 95.9%;
+    --secondary-foreground: 220.9 39.3% 11%;
+
+    --muted: 220 14.3% 95.9%;
+    --muted-foreground: 220 8.9% 46.1%;
+
+    --accent: 220 14.3% 95.9%;
+    --accent-foreground: 220.9 39.3% 11%;
+
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 20% 98%;
+
+    --border: 220 13% 91%;
+    --input: 220 13% 91%;
+    --ring: 221.2 83.2% 53.3%;
+
+    --radius: 0.5rem;
+  }
+
+  .dark {
+    --background: 224 71.4% 4.1%;
+    --foreground: 210 20% 98%;
+
+    --card: 224 71.4% 4.1%;
+    --card-foreground: 210 20% 98%;
+
+    --popover: 224 71.4% 4.1%;
+    --popover-foreground: 210 20% 98%;
+
+    --primary: 217.2 91.2% 59.8%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 20% 98%;
+
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 20% 98%;
+
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 20% 98%;
+
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 224.3 76.3% 48%;
+  }
+}
+
+@layer base {
   * {
     @apply border-border;
   }
@@ -10,4 +74,80 @@
   body {
     @apply font-sans antialiased bg-background text-foreground;
   }
+}
+
+/* Custom grid background pattern */
+.bg-grid-gray-100 {
+  background-image: linear-gradient(to right, rgba(229, 231, 235, 0.1) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(229, 231, 235, 0.1) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+.bg-grid-gray-800 {
+  background-image: linear-gradient(to right, rgba(31, 41, 55, 0.1) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(31, 41, 55, 0.1) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+/* Fade in animation for sections */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+section {
+  animation: fadeIn 0.5s ease-out forwards;
+}
+
+/* Animate feature cards on hover */
+.feature-card {
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.feature-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+}
+
+/* Custom background gradient for hero section */
+.hero-gradient {
+  background: linear-gradient(135deg, rgba(239, 246, 255, 0.8) 0%, rgba(243, 244, 246, 0.8) 100%);
+}
+
+/* Pricing highlight effect */
+.pricing-highlight {
+  position: relative;
+}
+
+.pricing-highlight::before {
+  content: '';
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  bottom: -2px;
+  left: -2px;
+  z-index: -1;
+  border-radius: calc(var(--radius) + 2px);
+  background: linear-gradient(to right, hsl(var(--primary)), hsl(var(--primary)) 30%, hsl(217.2, 91.2%, 70%) 100%);
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.6;
+  }
+}
+
+/* Smooth scroll behavior */
+html {
+  scroll-behavior: smooth;
 }

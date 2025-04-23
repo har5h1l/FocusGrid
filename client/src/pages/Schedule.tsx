@@ -1,227 +1,452 @@
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
-import { useToast } from "@/hooks/use-toast";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { StudyPlan, StudyTask, WeekData, GeneratedPlan } from "../types";
-import CalendarView from "../components/CalendarView";
-import WeeklyTasks from "../components/WeeklyTasks";
-import CalendarIntegration from "../components/CalendarIntegration";
-import AIRefinementDialog from "../components/AIRefinementDialog";
-import { Separator } from "@/components/ui/separator";
-import { apiRequest } from "@/lib/queryClient";
+import React, { useState, useEffect } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useToast } from '@/components/ui/use-toast';
+import { 
+  Card, 
+  CardContent, 
+  CardDescription, 
+  CardHeader, 
+  CardTitle 
+} from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Calendar, Clock, BookOpen, BarChart3, MessageSquare, Loader2, Sparkles } from 'lucide-react';
+import { format, parseISO, isAfter, isBefore, addDays, startOfWeek, endOfWeek } from 'date-fns';
+import { mockGetPlan, mockUpdateTask } from '@/lib/apiMocks';
+import AIRefinementDialog from '@/components/AIRefinementDialog';
+import AIChatDialog from '@/components/AIChatDialog';
+import { GeneratedPlan, StudyPlan, StudyTask } from '@/types';
 
-export default function Schedule() {
-  const [selectedPlanId, setSelectedPlanId] = useState<number | null>(null);
-  const { toast } = useToast();
+// Types for our study plan and tasks
+interface ScheduleProps {
+  id: string;
+}
+
+export default function Schedule({ id }: ScheduleProps) {
+  const [activeTab, setActiveTab] = useState('upcoming');
   const queryClient = useQueryClient();
-
-  // Fetch all study plans
-  const { 
-    data: studyPlans, 
-    isLoading: isLoadingPlans,
-    error: plansError
-  } = useQuery<StudyPlan[]>({
-    queryKey: ['/api/study-plans'],
-  });
-
-  // Fetch tasks for selected plan
+  const { toast } = useToast();
+  const [isRefinementDialogOpen, setIsRefinementDialogOpen] = useState(false);
+  const [isChatDialogOpen, setIsChatDialogOpen] = useState(false);
+  
+  // Fetch the study plan and tasks
   const {
-    data: tasks,
-    isLoading: isLoadingTasks,
-  } = useQuery<StudyTask[]>({
-    queryKey: [`/api/study-plans/${selectedPlanId}/tasks`],
-    enabled: !!selectedPlanId,
+    data: planData,
+    isLoading: isPlanLoading,
+    error: planError,
+    refetch: refetchPlan
+  } = useQuery<{
+    plan: StudyPlan; 
+    tasks: StudyTask[];
+    aiWeeklyPlan?: any[]; 
+  }>({
+    queryKey: ['plan', id],
+    queryFn: async () => {
+      try {
+        // Use the mock API in development
+        return await mockGetPlan(id);
+      } catch (error) {
+        console.error('Error fetching plan:', error);
+        throw new Error('Failed to fetch study plan');
+      }
+    }
   });
 
-  // Mutation for updating a study plan
-  const updatePlanMutation = useMutation({
-    mutationFn: async (refinedPlan: GeneratedPlan) => {
-      // Update the study plan first
-      const planResponse = await apiRequest(
-        'PUT', 
-        `/api/study-plans/${selectedPlanId}`, 
-        { plan: refinedPlan.studyPlan }
-      );
-      
-      // Then update or create the tasks
-      for (const task of refinedPlan.weeklyTasks) {
-        if (task.id && task.id > 0) {
-          // Update existing task
-          await apiRequest(
-            'PUT',
-            `/api/study-tasks/${task.id}`,
-            task
-          );
-        } else {
-          // Create new task
-          await apiRequest(
-            'POST',
-            `/api/study-plans/${selectedPlanId}/tasks`,
-            task
-          );
-        }
+  // Update task completion status
+  const updateTask = useMutation({
+    mutationFn: async ({ taskId, isCompleted }: { taskId: number, isCompleted: boolean }) => {
+      try {
+        // Use the mock API in development
+        return await mockUpdateTask(id, taskId, { isCompleted });
+      } catch (error) {
+        console.error('Error updating task:', error);
+        throw new Error('Failed to update task');
       }
-      
-      return planResponse.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [`/api/study-plans/${selectedPlanId}/tasks`] });
+      // Invalidate the plan data query to refetch
+      queryClient.invalidateQueries({ queryKey: ['plan', id] });
       toast({
-        title: "Plan Updated",
-        description: "Your study plan has been refined with AI suggestions.",
+        title: 'Task updated',
+        description: 'Your progress has been saved.',
       });
     },
     onError: () => {
       toast({
-        title: "Error",
-        description: "Failed to update your study plan.",
-        variant: "destructive",
+        title: 'Error',
+        description: 'Failed to update task status.',
+        variant: 'destructive',
       });
     }
   });
 
-  // Find the currently selected plan
-  const selectedPlan = selectedPlanId && studyPlans 
-    ? studyPlans.find(plan => plan.id === selectedPlanId) 
-    : null;
-
-  // Mock calendar data for the selected plan
-  // In a real implementation, this would come from the server
-  const calendarWeeks: WeekData[] = tasks ? [
-    {
-      weekRange: "Current Week",
-      monday: tasks.find(t => t.taskType === 'study') ? {
-        title: tasks.find(t => t.taskType === 'study')?.title || "",
-        duration: tasks.find(t => t.taskType === 'study')?.duration || 0,
-        resource: tasks.find(t => t.taskType === 'study')?.resource || "",
-        type: 'study'
-      } : undefined,
-      wednesday: tasks.find(t => t.taskType === 'study') ? {
-        title: tasks.find(t => t.taskType === 'study')?.title || "",
-        duration: tasks.find(t => t.taskType === 'study')?.duration || 0,
-        resource: tasks.find(t => t.taskType === 'study')?.resource || "",
-        type: 'study'
-      } : undefined,
-      friday: tasks.find(t => t.taskType === 'review') ? {
-        title: tasks.find(t => t.taskType === 'review')?.title || "",
-        duration: tasks.find(t => t.taskType === 'review')?.duration || 0,
-        resource: tasks.find(t => t.taskType === 'review')?.resource || "",
-        type: 'review'
-      } : undefined,
-      weekend: tasks.find(t => t.taskType === 'practice') ? {
-        title: tasks.find(t => t.taskType === 'practice')?.title || "",
-        duration: tasks.find(t => t.taskType === 'practice')?.duration || 0,
-        resource: tasks.find(t => t.taskType === 'practice')?.resource || "",
-        type: 'practice'
-      } : undefined,
-    }
-  ] : [];
-
-  // Handle AI-refined plan updates
-  const handleRefinedPlan = (refinedPlan: GeneratedPlan) => {
-    updatePlanMutation.mutate(refinedPlan);
+  const handleToggleTask = (taskId: number, currentStatus: boolean) => {
+    updateTask.mutate({ taskId, isCompleted: !currentStatus });
   };
 
-  if (plansError) {
+  // Handle successful plan refinement
+  const handleRefinementComplete = (refinedPlan: GeneratedPlan) => {
+    queryClient.invalidateQueries({ queryKey: ['plan', id] });
     toast({
-      title: "Error",
-      description: "Failed to load study plans.",
-      variant: "destructive",
+      title: "Plan Refined!",
+      description: "Your study plan has been updated with AI suggestions.",
     });
-  }
+  };
 
-  if (isLoadingPlans) {
+  // Calculate overall progress
+  const calculateProgress = (plan?: StudyPlan, tasks?: StudyTask[]) => {
+    if (!plan || !tasks || tasks.length === 0) return 0;
+    const completedTasks = tasks.filter(task => task.isCompleted).length;
+    return Math.round((completedTasks / tasks.length) * 100);
+  };
+
+  // Filter tasks based on the active tab
+  const filterTasks = (tasks?: StudyTask[]) => {
+    if (!tasks) return [];
+    
+    const today = new Date();
+    
+    switch (activeTab) {
+      case 'upcoming':
+        return tasks.filter(task => {
+          const taskDate = parseISO(task.date);
+          return isAfter(taskDate, today) && !task.isCompleted;
+        }).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+      
+      case 'completed':
+        return tasks.filter(task => task.isCompleted)
+          .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      
+      case 'thisWeek':
+        const startOfThisWeek = startOfWeek(today, { weekStartsOn: 1 });
+        const endOfThisWeek = endOfWeek(today, { weekStartsOn: 1 });
+        return tasks.filter(task => {
+          const taskDate = parseISO(task.date);
+          return (
+            isAfter(taskDate, startOfThisWeek) && 
+            isBefore(taskDate, endOfThisWeek)
+          );
+        }).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+      
+      case 'overdue':
+        return tasks.filter(task => {
+          const taskDate = parseISO(task.date);
+          return isBefore(taskDate, today) && !task.isCompleted;
+        }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      
+      default:
+        return tasks;
+    }
+  };
+
+  // Format the exam countdown
+  const getExamCountdown = (examDate?: string) => {
+    if (!examDate) return 'No exam date set';
+    
+    const today = new Date();
+    const exam = parseISO(examDate);
+    
+    if (isBefore(exam, today)) {
+      return 'Exam has passed';
+    }
+    
+    const diffTime = Math.abs(exam.getTime() - today.getTime());
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    
+    return `${diffDays} days until exam`;
+  };
+
+  // Get task color based on type
+  const getTaskTypeColor = (taskType: string) => {
+    switch (taskType) {
+      case 'study':
+        return 'bg-blue-100 text-blue-800';
+      case 'review':
+        return 'bg-purple-100 text-purple-800';
+      case 'practice':
+        return 'bg-green-100 text-green-800';
+      default:
+        return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  // Get task icon based on type
+  const getTaskTypeIcon = (taskType: string) => {
+    switch (taskType) {
+      case 'study':
+        return <BookOpen className="h-4 w-4" />;
+      case 'review':
+        return <BarChart3 className="h-4 w-4" />;
+      case 'practice':
+        return <Clock className="h-4 w-4" />;
+      default:
+        return <Calendar className="h-4 w-4" />;
+    }
+  };
+
+  // If plan is loading or errored
+  if (isPlanLoading) {
     return (
-      <div className="space-y-4">
-        <Skeleton className="h-8 w-64" />
-        <Skeleton className="h-24 w-full" />
-        <Skeleton className="h-64 w-full" />
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
     );
   }
 
-  if (!studyPlans || studyPlans.length === 0) {
+  if (planError || !planData?.plan) {
     return (
-      <div className="bg-white shadow-sm rounded-lg p-6 text-center">
-        <h2 className="text-xl font-semibold mb-4">No Study Plans</h2>
-        <p className="text-gray-500">You haven't created any study plans yet. Go to the Create Plan tab to get started.</p>
+      <div className="p-8 text-center">
+        <h1 className="text-2xl font-bold text-red-500">Error</h1>
+        <p className="mt-2">Failed to load the study plan. Please try again.</p>
+        <Button className="mt-4" onClick={() => refetchPlan()}>
+          Retry
+        </Button>
       </div>
     );
   }
+
+  const plan = planData.plan;
+  const tasks = planData.tasks || [];
+  // Construct the GeneratedPlan object needed for the dialog
+  const generatedPlanForDialog: GeneratedPlan = {
+    studyPlan: plan,
+    weeklyTasks: tasks,
+    aiWeeklyPlan: planData.aiWeeklyPlan || [], 
+    calendarWeeks: [] 
+  };
+
+  const progress = calculateProgress(plan, tasks);
+  const filteredTasks = filterTasks(tasks);
+
+  // Add new section to display AI-generated plan structure
+  const AIGeneratedPlanSection = ({ plan }: { plan: StudyPlan }) => {
+    if (!plan.aiRecommendations?.length && !plan.planSummary && !plan.finalWeekStrategy) {
+      return null;
+    }
+    
+    return (
+      <div className="mt-8">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-xl">Your AI-Optimized Study Plan</CardTitle>
+            <CardDescription>
+              This plan is tailored to your preferences and learning style
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {plan.planSummary && (
+              <div>
+                <h3 className="text-lg font-medium mb-2">Plan Overview</h3>
+                <p className="text-gray-700">{plan.planSummary}</p>
+              </div>
+            )}
+            
+            {plan.aiRecommendations?.length > 0 && (
+              <div>
+                <h3 className="text-lg font-medium mb-2">Study Tips</h3>
+                <ul className="list-disc pl-5 space-y-1">
+                  {plan.aiRecommendations.map((tip, i) => (
+                    <li key={i} className="text-gray-700">{tip}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            
+            {plan.finalWeekStrategy && (
+              <div>
+                <h3 className="text-lg font-medium mb-2">Final Week Strategy</h3>
+                <p className="text-gray-700">{plan.finalWeekStrategy}</p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    );
+  };
 
   return (
-    <div className="space-y-6">
-      <div className="bg-white shadow-sm rounded-lg p-6">
-        <h2 className="text-xl font-semibold mb-4">My Study Schedule</h2>
+    <div className="container py-8">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <Card className="md:col-span-2">
+          <CardHeader>
+            <CardTitle>{plan.courseName}</CardTitle>
+            <CardDescription className="flex items-center gap-2">
+              <Calendar className="h-4 w-4" />
+              {getExamCountdown(plan.examDate)}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-wrap gap-4 mb-4">
+              <div className="bg-card rounded-lg p-4 flex-1 border">
+                <div className="text-muted-foreground text-sm mb-1">Progress</div>
+                <div className="text-2xl font-bold">{progress}%</div>
+                <div className="w-full bg-gray-200 rounded-full h-2.5 mt-2">
+                  <div 
+                    className="bg-primary h-2.5 rounded-full" 
+                    style={{ width: `${progress}%` }}
+                  ></div>
+                </div>
+              </div>
+              <div className="bg-card rounded-lg p-4 flex-1 border">
+                <div className="text-muted-foreground text-sm mb-1">Study Time</div>
+                <div className="text-2xl font-bold">{plan.weeklyStudyTime} hrs/week</div>
+                <div className="text-sm text-muted-foreground mt-1">
+                  {plan.studyPreference === 'short' ? 'Short, frequent sessions' : 'Long, focused sessions'}
+                </div>
+              </div>
+            </div>
+            
+            <div className="mb-6">
+              <h3 className="text-lg font-medium mb-2">Topics</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
+                {plan.topics.map((topic, index) => (
+                  <div 
+                    key={index} 
+                    className="bg-muted px-3 py-2 rounded-md text-sm flex justify-between items-center"
+                  >
+                    <span>{topic}</span>
+                    <span className="text-xs bg-primary text-primary-foreground px-2 py-0.5 rounded-full">
+                      {plan.topicsProgress && plan.topicsProgress[topic] ? `${plan.topicsProgress[topic]}%` : '0%'}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            
+            <div>
+              <h3 className="text-lg font-medium mb-2">Resources</h3>
+              <div className="flex flex-wrap gap-2">
+                {plan.resources.map((resource, index) => (
+                  <div key={index} className="bg-muted px-3 py-1 rounded-md text-sm">
+                    {resource}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
         
-        <div className="max-w-xs mb-6">
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Select Study Plan
-          </label>
-          <Select 
-            onValueChange={(value) => setSelectedPlanId(parseInt(value))}
-            defaultValue={selectedPlanId?.toString()}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Choose a study plan" />
-            </SelectTrigger>
-            <SelectContent>
-              {studyPlans.map((plan) => (
-                <SelectItem key={plan.id} value={plan.id.toString()}>
-                  {plan.courseName}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+        <Card>
+          <CardHeader>
+            <CardTitle>Study Assistant</CardTitle>
+            <CardDescription>Need help or want to adjust?</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <Button 
+              variant="outline" 
+              className="w-full flex items-center justify-center gap-2" 
+              onClick={() => setIsRefinementDialogOpen(true)}
+            >
+              <Sparkles className="h-4 w-4" />
+              Refine Plan with AI
+            </Button>
+            
+            <div className="text-center p-4 bg-muted rounded-lg">
+              <MessageSquare className="h-10 w-10 mx-auto mb-4 text-primary" />
+              <h3 className="font-medium mb-2">Ask AI About Your Plan</h3>
+              <p className="text-sm text-muted-foreground mb-4">
+                Get instant answers to questions about topics, schedule, or study methods.
+              </p>
+              <Button 
+                className="w-full" 
+                onClick={() => setIsChatDialogOpen(true)}
+              >
+                Start Chat
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
 
-        {selectedPlanId ? (
-          isLoadingTasks ? (
-            <div className="space-y-4">
-              <Skeleton className="h-64 w-full" />
-              <Skeleton className="h-32 w-full" />
+      <AIGeneratedPlanSection plan={plan} />
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Study Schedule</CardTitle>
+          <Tabs defaultValue="upcoming" value={activeTab} onValueChange={setActiveTab} className="w-full">
+            <TabsList>
+              <TabsTrigger value="upcoming">Upcoming</TabsTrigger>
+              <TabsTrigger value="thisWeek">This Week</TabsTrigger>
+              <TabsTrigger value="completed">Completed</TabsTrigger>
+              <TabsTrigger value="overdue">Overdue</TabsTrigger>
+            </TabsList>
+          </Tabs>
+        </CardHeader>
+        <CardContent>
+          {filteredTasks.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              No tasks in this category
             </div>
           ) : (
-            <>
-              {tasks && tasks.length > 0 ? (
-                <>
-                  {selectedPlan && tasks && (
-                    <div className="mb-6 max-w-md mx-auto">
-                      <AIRefinementDialog 
-                        studyPlan={{
-                          studyPlan: selectedPlan,
-                          calendarWeeks,
-                          weeklyTasks: tasks
-                        }}
-                        onRefinementComplete={handleRefinedPlan}
-                      />
-                      <p className="text-xs text-gray-500 mt-2 text-center">
-                        Enhance your study plan with AI-powered personalization
-                      </p>
-                    </div>
-                  )}
-                
-                  <CalendarView calendarWeeks={calendarWeeks} />
-                  <WeeklyTasks tasks={tasks} />
-                  
-                  <Separator className="my-8" />
-                  
-                  {/* Calendar Integration Section */}
-                  <CalendarIntegration 
-                    tasks={tasks} 
-                    planName={selectedPlan?.courseName || "Study Plan"} 
+            <div className="space-y-4">
+              {filteredTasks.map((task) => (
+                <div key={task.id} className="flex items-start gap-4 p-4 border rounded-lg">
+                  <Checkbox 
+                    id={`task-${task.id}`}
+                    checked={task.isCompleted}
+                    onCheckedChange={() => handleToggleTask(task.id, task.isCompleted)}
                   />
-                </>
-              ) : (
-                <p className="text-center text-gray-500 py-8">No tasks found for this study plan.</p>
-              )}
-            </>
-          )
-        ) : (
-          <p className="text-center text-gray-500 py-8">Please select a study plan to view your schedule.</p>
-        )}
-      </div>
+                  <div className="flex-1">
+                    <div className="flex justify-between">
+                      <div>
+                        <label 
+                          htmlFor={`task-${task.id}`}
+                          className={`font-medium ${task.isCompleted ? 'line-through text-muted-foreground' : ''}`}
+                        >
+                          {task.title}
+                        </label>
+                        {task.description && (
+                          <p className={`text-sm mt-1 ${task.isCompleted ? 'text-muted-foreground line-through' : 'text-muted-foreground'}`}>
+                            {task.description}
+                          </p>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span 
+                          className={`text-xs px-2 py-1 rounded-full flex items-center gap-1 ${getTaskTypeColor(task.taskType)}`}
+                        >
+                          {getTaskTypeIcon(task.taskType)}
+                          {task.taskType}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex justify-between items-center mt-2 text-sm text-muted-foreground">
+                      <div className="flex items-center gap-1">
+                        <Calendar className="h-3 w-3" />
+                        {format(parseISO(task.date), 'MMM d, yyyy')}
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <Clock className="h-3 w-3" />
+                        {task.duration} min
+                      </div>
+                      {task.resource && (
+                        <div className="flex items-center gap-1">
+                          <BookOpen className="h-3 w-3" />
+                          {task.resource}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+      
+      <AIRefinementDialog
+        studyPlan={generatedPlanForDialog} 
+        onRefinementComplete={handleRefinementComplete}
+        open={isRefinementDialogOpen}
+        onOpenChange={setIsRefinementDialogOpen}
+      />
+      
+      <AIChatDialog 
+        studyPlan={plan}
+        open={isChatDialogOpen}
+        onOpenChange={setIsChatDialogOpen}
+      />
     </div>
   );
 }
