@@ -59,11 +59,17 @@ export async function mockCreatePlan(planData: any) {
   
   // Create a plan with an ID
   const planId = Date.now(); // Use timestamp as unique ID
+  
+  // Check if we have an AI-generated plan with weekly structure
+  const hasAIStructure = planData.aiWeeklyPlan && planData.aiWeeklyPlan.length > 0;
+  
   const plan = {
     id: planId,
     ...planData,
     topicsProgress, // Add initialized progress
     createdAt: new Date().toISOString(),
+    // Flag to indicate whether this plan was personalized by AI
+    isAIPersonalized: hasAIStructure,
   };
   
   // Store the plan data in localStorage
@@ -277,4 +283,150 @@ export async function mockUpdateTask(planId: string, taskId: number, data: any) 
     studyPlanId: parseInt(planId),
     ...data,
   };
-} 
+}
+
+// Mock function to get all study plans
+export async function mockGetAllPlans() {
+  console.log('Fetching all mock plans');
+  
+  // Simulate API delay
+  await new Promise(resolve => setTimeout(resolve, 500));
+  
+  // Find all plan items in localStorage
+  const plans = [];
+  const tasks = {};
+  
+  // Get all keys from localStorage
+  const keys = Object.keys(localStorage);
+  for (const key of keys) {
+    if (key.startsWith('plan_')) {
+      try {
+        const planData = JSON.parse(localStorage.getItem(key) || '{}');
+        const planId = parseInt(key.replace('plan_', ''));
+        
+        // Add plan to array
+        plans.push(planData);
+        
+        // Generate tasks for this plan
+        const planTasks = (planData.topics || []).flatMap((topic, index) => {
+          const resource = (planData.resources || [])[index % (planData.resources || []).length] || 'Textbook';
+          const offset = index * 2 * 86400000; // 2 days between each topic
+          const studyPreference = planData.studyPreference || 'short';
+          
+          // Set completed status based on topic progress
+          const isTopicCompleted = planData.topicsProgress?.[topic] === 100;
+          
+          return [
+            {
+              id: planId * 1000 + index * 3 + 1,
+              studyPlanId: planId,
+              title: `Study ${topic}`,
+              description: `Learn key concepts about ${topic}`,
+              date: new Date(Date.now() + offset).toISOString(),
+              duration: studyPreference === 'short' ? 30 : 60,
+              resource: resource,
+              isCompleted: isTopicCompleted,
+              taskType: 'study',
+            },
+            {
+              id: planId * 1000 + index * 3 + 2,
+              studyPlanId: planId,
+              title: `Review ${topic}`,
+              description: `Review your notes on ${topic}`,
+              date: new Date(Date.now() + offset + 86400000).toISOString(), // 1 day after study
+              duration: studyPreference === 'short' ? 20 : 45,
+              resource: 'Notes',
+              isCompleted: false,
+              taskType: 'review',
+            },
+            {
+              id: planId * 1000 + index * 3 + 3,
+              studyPlanId: planId,
+              title: `Practice ${topic}`,
+              description: `Complete practice questions on ${topic}`,
+              date: new Date(Date.now() + offset + 2 * 86400000).toISOString(), // 2 days after study
+              duration: studyPreference === 'short' ? 25 : 50,
+              resource: 'Practice Tests',
+              isCompleted: false,
+              taskType: 'practice',
+            }
+          ];
+        });
+        
+        // Add tasks to the map with plan ID as key
+        tasks[planId] = planTasks;
+      } catch (error) {
+        console.error(`Error parsing plan data for ${key}:`, error);
+      }
+    }
+  }
+  
+  // If no plans found in localStorage, create sample data
+  if (plans.length === 0) {
+    const samplePlan = {
+      id: 1,
+      courseName: 'Sample Psychology Course',
+      examDate: new Date(Date.now() + 30 * 86400000).toISOString(),
+      weeklyStudyTime: 8,
+      studyPreference: 'short',
+      topics: ['Cognitive Psychology', 'Social Psychology', 'Research Methods', 'Development'],
+      resources: ['Textbook', 'Lecture Notes', 'Practice Questions', 'Online Videos'],
+      topicsProgress: {
+        'Cognitive Psychology': 75,
+        'Social Psychology': 50,
+        'Research Methods': 25,
+        'Development': 0
+      },
+      createdAt: new Date(Date.now() - 10 * 86400000).toISOString() // 10 days ago
+    };
+    
+    plans.push(samplePlan);
+    
+    // Create sample tasks
+    const sampleTasks = samplePlan.topics.flatMap((topic, index) => {
+      const resource = samplePlan.resources[index % samplePlan.resources.length];
+      const offset = index * 2 * 86400000; // 2 days between each topic
+      const progress = samplePlan.topicsProgress[topic] || 0;
+      
+      return [
+        {
+          id: 1000 + index * 3 + 1,
+          studyPlanId: 1,
+          title: `Study ${topic}`,
+          description: `Learn key concepts about ${topic}`,
+          date: new Date(Date.now() + offset).toISOString(),
+          duration: 30,
+          resource: resource,
+          isCompleted: progress >= 50, // Completed if progress is 50% or more
+          taskType: 'study',
+        },
+        {
+          id: 1000 + index * 3 + 2,
+          studyPlanId: 1,
+          title: `Review ${topic}`,
+          description: `Review your notes on ${topic}`,
+          date: new Date(Date.now() + offset + 86400000).toISOString(), // 1 day after study
+          duration: 20,
+          resource: 'Notes',
+          isCompleted: progress >= 75, // Completed if progress is 75% or more
+          taskType: 'review',
+        },
+        {
+          id: 1000 + index * 3 + 3,
+          studyPlanId: 1,
+          title: `Practice ${topic}`,
+          description: `Complete practice questions on ${topic}`,
+          date: new Date(Date.now() + offset + 2 * 86400000).toISOString(), // 2 days after study
+          duration: 25,
+          resource: 'Practice Tests',
+          isCompleted: progress === 100, // Completed if progress is 100%
+          taskType: 'practice',
+        }
+      ];
+    });
+    
+    tasks[1] = sampleTasks;
+  }
+  
+  return { plans, tasks };
+}

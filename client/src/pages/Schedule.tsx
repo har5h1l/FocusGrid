@@ -17,6 +17,7 @@ import { mockGetPlan, mockUpdateTask } from '@/lib/apiMocks';
 import AIRefinementDialog from '@/components/AIRefinementDialog';
 import AIChatDialog from '@/components/AIChatDialog';
 import { GeneratedPlan, StudyPlan, StudyTask } from '@/types';
+import AIWeeklyPlanView from '@/components/AIWeeklyPlanView';
 
 // Types for our study plan and tasks
 interface ScheduleProps {
@@ -221,42 +222,59 @@ export default function Schedule({ id }: ScheduleProps) {
 
   // Add new section to display AI-generated plan structure
   const AIGeneratedPlanSection = ({ plan }: { plan: StudyPlan }) => {
-    if (!plan.aiRecommendations?.length && !plan.planSummary && !plan.finalWeekStrategy) {
+    if (!plan.aiRecommendations?.length && !plan.planSummary && !plan.finalWeekStrategy && !planData?.aiWeeklyPlan?.length) {
       return null;
     }
+    
+    const hasAIWeeklyPlan = planData?.aiWeeklyPlan && planData.aiWeeklyPlan.length > 0;
     
     return (
       <div className="mt-8">
         <Card>
           <CardHeader>
-            <CardTitle className="text-xl">Your AI-Optimized Study Plan</CardTitle>
+            <CardTitle className="text-xl flex items-center">
+              <Sparkles className="h-5 w-5 mr-2 text-blue-500" />
+              Your AI-Optimized Study Plan
+            </CardTitle>
             <CardDescription>
-              This plan is tailored to your preferences and learning style
+              This plan is tailored to your preferences, learning style, and progress
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             {plan.planSummary && (
-              <div>
-                <h3 className="text-lg font-medium mb-2">Plan Overview</h3>
+              <div className="bg-blue-50 p-4 rounded-lg mb-4">
                 <p className="text-gray-700">{plan.planSummary}</p>
+              </div>
+            )}
+            
+            {/* Display the AI weekly plan using our new component if available */}
+            {hasAIWeeklyPlan && (
+              <div className="mt-6">
+                <AIWeeklyPlanView 
+                  weeklyPlan={planData?.aiWeeklyPlan || []} 
+                  finalWeekStrategy={plan.finalWeekStrategy} 
+                />
+              </div>
+            )}
+            
+            {!hasAIWeeklyPlan && plan.finalWeekStrategy && (
+              <div>
+                <h3 className="text-lg font-medium mb-2">Final Week Strategy</h3>
+                <p className="text-gray-700">{plan.finalWeekStrategy}</p>
               </div>
             )}
             
             {plan.aiRecommendations?.length > 0 && (
               <div>
-                <h3 className="text-lg font-medium mb-2">Study Tips</h3>
-                <ul className="list-disc pl-5 space-y-1">
+                <h3 className="text-lg font-medium mb-2 flex items-center">
+                  <Sparkles className="h-4 w-4 mr-2 text-blue-600" />
+                  Personalized Study Tips
+                </h3>
+                <ul className="list-disc pl-5 space-y-2">
                   {plan.aiRecommendations.map((tip, i) => (
                     <li key={i} className="text-gray-700">{tip}</li>
                   ))}
                 </ul>
-              </div>
-            )}
-            
-            {plan.finalWeekStrategy && (
-              <div>
-                <h3 className="text-lg font-medium mb-2">Final Week Strategy</h3>
-                <p className="text-gray-700">{plan.finalWeekStrategy}</p>
               </div>
             )}
           </CardContent>

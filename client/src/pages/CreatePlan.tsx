@@ -1,48 +1,50 @@
 import React, { useState } from 'react';
 import { useLocation } from 'wouter';
 import StudyPlanForm from '@/components/StudyPlanForm';
+import AIClarificationDialog from '@/components/AIClarificationDialog';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/use-toast';
 import { Loader2 } from 'lucide-react';
-import { mockCreatePlan, mockRefinePlan } from '@/lib/apiMocks';
-import { generateAIStudyPlan, refineStudyPlanWithAI } from '@/lib/aiService';
-import { AIStudyPlanResponse } from '@/types';
-
-// Define the StudyPlanFormData interface
-export interface StudyPlanFormData {
-  courseName: string;
-  examDate: string;
-  weeklyStudyTime: number;
-  studyPreference: 'short' | 'long';
-  topics: { name: string; priority: number }[];
-  resources: { name: string; url?: string }[];
-  learningStyle?: 'visual' | 'auditory' | 'reading' | 'kinesthetic';
-  studyMaterials?: string[];
-  targetScore?: number;
-  generateOptions?: boolean;
-}
+import { mockCreatePlan } from '@/lib/apiMocks';
+import { generateAIStudyPlan } from '@/lib/aiService';
+import { AIStudyPlanResponse, StudyPlanFormData } from '@/types';
 
 export default function CreatePlan() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [, navigate] = useLocation();
   const { toast } = useToast();
+  const [showClarificationDialog, setShowClarificationDialog] = useState(false);
+  const [pendingPlanData, setPendingPlanData] = useState<StudyPlanFormData | null>(null);
 
-  const handleSubmit = async (data: StudyPlanFormData) => {
+  // First step: Handle form submission and show clarification dialog
+  const handleFormSubmit = async (data: StudyPlanFormData) => {
+    // Basic validation
+    if (!data.courseName || !data.examDate || !data.topics.length) {
+      toast({
+        title: 'Missing information',
+        description: 'Please fill in all required fields.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    // If AI-powered plan generation is enabled, show clarification dialog
+    if (data.generateOptions) {
+      setPendingPlanData(data);
+      setShowClarificationDialog(true);
+    } else {
+      // For non-AI plans, proceed directly
+      await createPlan(data);
+    }
+  };
+
+  // Second step: After clarifications (or if skipped), create the actual plan
+  const createPlan = async (data: StudyPlanFormData) => {
     setIsSubmitting(true);
+    setShowClarificationDialog(false);
     
     try {
-      // Basic validation
-      if (!data.courseName || !data.examDate || !data.topics.length) {
-        toast({
-          title: 'Missing information',
-          description: 'Please fill in all required fields.',
-          variant: 'destructive',
-        });
-        setIsSubmitting(false);
-        return;
-      }
-
       // Prepare the plan data
       const planData = {
         courseName: data.courseName,
@@ -51,12 +53,16 @@ export default function CreatePlan() {
         studyPreference: data.studyPreference,
         learningStyle: data.learningStyle,
         studyMaterials: data.studyMaterials,
-        topics: data.topics.map(t => t.title || t.name),
-        resources: data.resources.map(r => r.name),
+        topics: Array.isArray(data.topics) ? data.topics.map(t => typeof t === 'string' ? t : t.title || t.name) : [],
+        resources: Array.isArray(data.resources) ? data.resources.map(r => typeof r === 'string' ? r : r.name) : [],
         targetScore: data.targetScore,
+        // Pass any clarification data we might have collected
+        topicProgressNotes: data.topicProgressNotes,
+        timeDistributionPreference: data.timeDistributionPreference,
+        lastMinutePriority: data.lastMinutePriority,
       };
 
-      // Generate AI study plan if options are enabled, otherwise use basic plan
+      // Generate AI study plan if options are enabled
       let aiPlanResponse: AIStudyPlanResponse | null = null;
       
       if (data.generateOptions) {
@@ -67,7 +73,7 @@ export default function CreatePlan() {
         });
         
         try {
-          // Generate AI plan
+          // Generate AI plan with enhanced data from clarifications
           aiPlanResponse = await generateAIStudyPlan(planData);
         } catch (error) {
           console.error('Error generating AI study plan:', error);
@@ -133,20 +139,28 @@ export default function CreatePlan() {
               <p className="text-muted-foreground mt-2">This may take a moment as we optimize your schedule.</p>
             </div>
           ) : (
-            <>
-              <StudyPlanForm onSubmit={handleSubmit} />
-              <div className="flex justify-between mt-8">
-                <Button variant="outline" onClick={() => navigate('/')}>
-                  Cancel
-                </Button>
-                <Button type="submit" form="study-plan-form">
-                  Generate Study Plan
-                </Button>
-              </div>
-            </>
+            <StudyPlanForm onSubmit={handleFormSubmit} />
           )}
         </CardContent>
       </Card>
+
+      {/* AI Clarification Dialog */}
+      {pendingPlanData && (
+        <AIClarificationDialog
+          planData={pendingPlanData}
+          open={showClarificationDialog}
+          onOpenChange={(open) => {
+            setShowClarificationDialog(open);
+            if (!open) {
+              // If dialog is closed without proceeding, reset pending data
+              setPendingPlanData(null);
+            }
+          }}
+          onProceedWithPlan={(updatedData) => {
+            createPlan(updatedData);
+          }}
+        />
+      )}
     </div>
   );
 }

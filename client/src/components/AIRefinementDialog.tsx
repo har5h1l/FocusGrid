@@ -29,8 +29,9 @@ export default function AIRefinementDialog({
   const [strongTopics, setStrongTopics] = useState<string[]>([]);
   const [weakTopics, setWeakTopics] = useState<string[]>([]);
   const [customRequest, setCustomRequest] = useState("");
+  const [error, setError] = useState<string | null>(null);
   
-  const { refinePlan, isRefining, error } = useAIRefinement();
+  const { refinePlan, isRefining } = useAIRefinement();
   
   const topics = studyPlan.studyPlan.topics || [];
   
@@ -93,13 +94,30 @@ export default function AIRefinementDialog({
         originalPlanData: studyPlan.studyPlan 
       };
       
+      // First, clear any previous errors
+      setError(null);
+      
       const refinedPlan = await refinePlan(studyPlan, refinementOptions);
       
+      // If we get here, the refinement was successful
       onRefinementComplete(refinedPlan);
+      
     } catch (err) {
       console.error("Failed to refine plan:", err);
+      // Error is already set by the hook, but we can add UI-specific handling here
+      // For example, we could show a retry button or additional guidance
     }
   };
+
+  // Check if the dialog should show any loading or error states
+  const isButtonDisabled = isRefining || (
+    !presetRefinements.some(p => p.request === customRequest) && 
+    !customRequest && 
+    !goals && 
+    strongTopics.length === 0 && 
+    weakTopics.length === 0 &&
+    selectedTechniques.length === 0
+  );
   
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -239,7 +257,7 @@ export default function AIRefinementDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isRefining}>
             Cancel
           </Button>
-          <Button onClick={() => handleRefinePlan()} disabled={isRefining || (!customRequest && !goals && strongTopics.length === 0 && weakTopics.length === 0)}>
+          <Button onClick={() => handleRefinePlan()} disabled={isButtonDisabled}>
             {isRefining ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -253,4 +271,4 @@ export default function AIRefinementDialog({
       </DialogContent>
     </Dialog>
   );
-} 
+}

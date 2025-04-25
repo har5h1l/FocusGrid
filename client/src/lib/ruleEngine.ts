@@ -21,6 +21,82 @@ interface StudyRules {
   rules: string[];
 }
 
+interface ResourceMetadata {
+  name: string;
+  type: 'learning' | 'practice' | 'review' | 'reference';
+  phase: 'early' | 'mid' | 'late';
+  description: string;
+}
+
+/**
+ * Classifies a resource based on its name/description to provide better context for the LLM
+ */
+function classifyResource(resource: string): ResourceMetadata {
+  const name = resource.toLowerCase();
+  
+  // Practice-oriented resources - belong in later phases after learning
+  if (name.includes('practice') || 
+      name.includes('quiz') || 
+      name.includes('problem') || 
+      name.includes('exercise') ||
+      name.includes('exam')) {
+    return {
+      name: resource,
+      type: 'practice',
+      phase: 'late',
+      description: `Use for practicing application of concepts after initial learning, especially in later weeks`
+    };
+  }
+  
+  // Review-oriented resources - for reinforcement and consolidation
+  if (name.includes('review') || 
+      name.includes('summary') || 
+      name.includes('flashcard') || 
+      name.includes('cheat sheet')) {
+    return {
+      name: resource,
+      type: 'review',
+      phase: 'mid',
+      description: `Use during review sessions and for reinforcing previously learned material`
+    };
+  }
+  
+  // Reference materials - can be used throughout but need guidance
+  if (name.includes('textbook') || 
+      name.includes('book') || 
+      name.includes('manual') || 
+      name.includes('guide')) {
+    return {
+      name: resource,
+      type: 'reference',
+      phase: 'early',
+      description: `Primary reference material, best for initial learning and detailed study`
+    };
+  }
+  
+  // Learning-oriented resources - better for initial exposure
+  if (name.includes('video') || 
+      name.includes('lecture') || 
+      name.includes('course') || 
+      name.includes('tutorial') ||
+      name.includes('youtube')) {
+    return {
+      name: resource,
+      type: 'learning',
+      phase: 'early',
+      description: `Ideal for initial exposure to concepts and visual/auditory learners`
+    };
+  }
+  
+  // Default case - assume it's a learning resource
+  return {
+    name: resource,
+    type: 'learning',
+    phase: 'mid',
+    description: `General study resource that can be used throughout the learning process`
+  };
+}
+
 /**
  * Generates a set of structured rules based on user input 
  * to guide the LLM plan generation.
@@ -93,24 +169,53 @@ export function generateStudyRules(planData: PlanGenerationData): StudyRules {
     }
   }
 
-   // --- Resource Utilization ---
-   if (resources.length > 0) {
-     rules.push(`Core resources to utilize: ${resources.join(', ')}.`);
-     if (resources.some(r => r.toLowerCase().includes('textbook') || r.toLowerCase().includes('book'))) {
-       rules.push("Assign specific chapter readings from the textbook(s).");
-     }
-     if (resources.some(r => r.toLowerCase().includes('video'))) {
-        rules.push("Schedule time for watching relevant videos, especially for visual learners or complex topics.");
-     }
-      if (resources.some(r => r.toLowerCase().includes('practice') || r.toLowerCase().includes('problem'))) {
-        rules.push("Regularly assign practice problems or tests from the available practice resources.");
-     }
-   }
-   
-   // --- Progress ---
-   if (planData.progress) {
-      rules.push(`Acknowledge the student's prior progress: "${planData.progress}". Ensure the plan starts from the next logical topic.`);
-   }
+  // --- Resource Utilization with Enhanced Context ---
+  if (resources.length > 0) {
+    // Classify all resources to get better context for usage
+    const classifiedResources = resources.map(resource => classifyResource(resource));
+    
+    // Add info about all resources
+    rules.push(`Core resources to utilize: ${resources.join(', ')}.`);
+    
+    // Add specific resource-based rules
+    const practiceResources = classifiedResources.filter(r => r.type === 'practice');
+    if (practiceResources.length > 0) {
+      const names = practiceResources.map(r => r.name).join(', ');
+      rules.push(`IMPORTANT: Practice resources (${names}) should primarily be used AFTER initial learning of a topic, with increasing frequency as the exam approaches.`);
+    }
+    
+    const reviewResources = classifiedResources.filter(r => r.type === 'review');
+    if (reviewResources.length > 0) {
+      const names = reviewResources.map(r => r.name).join(', ');
+      rules.push(`Review materials (${names}) should be integrated throughout the plan, using spaced repetition principles.`);
+    }
+    
+    const learningResources = classifiedResources.filter(r => r.type === 'learning' || r.type === 'reference');
+    if (learningResources.length > 0) {
+      const names = learningResources.map(r => r.name).join(', ');
+      rules.push(`Primary learning resources (${names}) should be used most heavily in the early learning phase of each topic.`);
+    }
+    
+    // Resource specific guidance
+    classifiedResources.forEach(resource => {
+      if (resource.name.toLowerCase().includes('flashcard')) {
+        rules.push(`For ${resource.name}: Create cards early but use them repeatedly throughout the study plan, with increasing frequency as the exam approaches.`);
+      } 
+      else if (resource.name.toLowerCase().includes('practice exam') || resource.name.toLowerCase().includes('mock exam')) {
+        rules.push(`For ${resource.name}: Schedule full practice exams primarily in the final 1-2 weeks before the exam, after covering all topics.`);
+      }
+      else if (resource.name.toLowerCase().includes('youtube') || resource.name.toLowerCase().includes('video')) {
+        rules.push(`For ${resource.name}: Use during initial learning phases, focusing on concepts that benefit from visual explanation.`);
+      }
+    });
+  }
+
+  // --- Progress ---
+  if (planData.progress) {
+     rules.push(`Acknowledge the student's prior progress: "${planData.progress}". Ensure the plan starts from the next logical topic.`);
+     rules.push(`For any topics marked as 100% complete, include only brief review sessions rather than full study sessions.`);
+     rules.push(`For topics with progress between 70-99%, focus on consolidation and practice rather than re-learning.`);
+  }
 
   return {
     examDate,
@@ -119,4 +224,4 @@ export function generateStudyRules(planData: PlanGenerationData): StudyRules {
     sessionType: studyPreference,
     rules
   };
-} 
+}

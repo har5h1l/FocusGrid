@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Link, useLocation } from "wouter";
 import { Book, User, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -8,16 +9,25 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { LoginForm } from "./LoginForm";
 
 export default function Header() {
   const [location, navigate] = useLocation();
-  const { user, logout, loading } = useAuth();
+  const { user, logoutMutation, isLoading } = useAuth();
+  const [isLoginOpen, setIsLoginOpen] = useState(false);
   
   const isAuthPage = location === "/auth";
   
   const handleLogout = async () => {
-    await logout();
+    await logoutMutation.mutateAsync();
     navigate("/auth");
+  };
+
+  const handleSavePlan = () => {
+    // Actual logic to save the plan would go here
+    const event = new CustomEvent('save-plan');
+    document.dispatchEvent(event);
   };
   
   return (
@@ -33,13 +43,13 @@ export default function Header() {
         </div>
         
         <div className="flex items-center gap-4">
-          {!isAuthPage && !user && !loading && (
-            <Button variant="outline" onClick={() => navigate("/auth")}>
+          {!isAuthPage && !user && !isLoading && (
+            <Button variant="outline" onClick={() => setIsLoginOpen(true)}>
               Sign In
             </Button>
           )}
           
-          {user && !loading && (
+          {user && !isLoading && (
             <>
               {location.startsWith("/schedule") || location.startsWith("/progress") ? (
                 <Button 
@@ -51,7 +61,7 @@ export default function Header() {
               ) : (
                 <Button 
                   variant="default" 
-                  onClick={() => console.log("Saving plan...")}
+                  onClick={handleSavePlan}
                 >
                   Save Plan
                 </Button>
@@ -77,6 +87,19 @@ export default function Header() {
           )}
         </div>
       </div>
+
+      {/* Login Dialog */}
+      <Dialog open={isLoginOpen} onOpenChange={setIsLoginOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Sign In</DialogTitle>
+            <DialogDescription>
+              Sign in to your account or create a new one to save your study plans
+            </DialogDescription>
+          </DialogHeader>
+          <LoginForm onSuccess={() => setIsLoginOpen(false)} />
+        </DialogContent>
+      </Dialog>
     </header>
   );
 }
